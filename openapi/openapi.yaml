@@ -225,6 +225,8 @@ paths:
   /products:
     get:
       security: [{ BearerAuth: [] }]
+      description: "Allowed roles: USER, SELLER, ADMIN."
+      x-roles-allowed: [USER, SELLER, ADMIN]
       parameters:
         - { in: query, name: page, schema: { type: integer, minimum: 0, default: 0 } }
         - { in: query, name: size, schema: { type: integer, minimum: 1, default: 20 } }
@@ -236,6 +238,8 @@ paths:
         "401": { description: Unauthorized, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
     post:
       security: [{ BearerAuth: [] }]
+      description: "Allowed roles: SELLER, ADMIN."
+      x-roles-allowed: [SELLER, ADMIN]
       requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ProductCreate" } } } }
       responses:
         "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/ProductEntity" } } } }
@@ -246,6 +250,8 @@ paths:
   /products/{id}:
     get:
       security: [{ BearerAuth: [] }]
+      description: "Allowed roles: USER, SELLER, ADMIN."
+      x-roles-allowed: [USER, SELLER, ADMIN]
       parameters: [ { in: path, name: id, required: true, schema: { type: string, format: uuid } } ]
       responses:
         "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/ProductEntity" } } } }
@@ -254,6 +260,8 @@ paths:
         "404": { description: Not found, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
     put:
       security: [{ BearerAuth: [] }]
+      description: "Allowed roles: SELLER, ADMIN. SELLER can modify only own products."
+      x-roles-allowed: [SELLER, ADMIN]
       parameters: [ { in: path, name: id, required: true, schema: { type: string, format: uuid } } ]
       requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ProductUpdate" } } } }
       responses:
@@ -264,6 +272,8 @@ paths:
         "404": { description: Not found, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
     delete:
       security: [{ BearerAuth: [] }]
+      description: "Allowed roles: SELLER, ADMIN. SELLER can archive only own products."
+      x-roles-allowed: [SELLER, ADMIN]
       parameters: [ { in: path, name: id, required: true, schema: { type: string, format: uuid } } ]
       responses:
         "204": { description: Archived }
@@ -275,6 +285,8 @@ paths:
   /promo-codes:
     post:
       security: [{ BearerAuth: [] }]
+      description: "Allowed roles: SELLER, ADMIN."
+      x-roles-allowed: [SELLER, ADMIN]
       requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/PromoCodeCreate" } } } }
       responses:
         "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/PromoCodeEntity" } } } }
@@ -285,6 +297,8 @@ paths:
   /orders:
     post:
       security: [{ BearerAuth: [] }]
+      description: "Allowed roles: USER, SELLER, ADMIN."
+      x-roles-allowed: [USER, SELLER, ADMIN]
       requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/CreateOrderRequest" } } } }
       responses:
         "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/OrderResponse" } } } }
@@ -298,6 +312,8 @@ paths:
   /orders/{id}/cancel:
     post:
       security: [{ BearerAuth: [] }]
+      description: "Allowed roles: USER, SELLER, ADMIN. Only owner can cancel order."
+      x-roles-allowed: [USER, SELLER, ADMIN]
       parameters: [ { in: path, name: id, required: true, schema: { type: string, format: uuid } } ]
       responses:
         "200": { description: Canceled, content: { application/json: { schema: { $ref: "#/components/schemas/OrderResponse" } } } }
