@@ -21,6 +21,7 @@ from generated.models.promo_code_entity import PromoCodeEntity
 from generated.models.refresh_request import RefreshRequest
 from generated.models.register_request import RegisterRequest
 from generated.models.token_pair import TokenPair
+from generated.models.update_order_request import UpdateOrderRequest
 
 from .auth import (
     create_access_token,
@@ -33,7 +34,7 @@ from .db import get_session
 from .errors import ApiError
 from .models import Order, OrderItem, Product, PromoCode, User
 from .security import Principal, get_principal
-from .services.orders import cancel_order, create_order
+from .services.orders import cancel_order, create_order, update_order
 from .services.products import archive_product, create_product, get_product, update_product
 from .services.promo_codes import create_promo_code
 from .services.users import get_user_by_email
@@ -260,6 +261,26 @@ async def orders_post(
         principal.user_id,
         [(item.product_id, item.quantity) for item in create_order_request.items],
         create_order_request.promo_code,
+    )
+    await session.refresh(order)
+    items = (
+        await session.execute(select(OrderItem).where(OrderItem.order_id == order.id))
+    ).scalars().all()
+    return _as_order_response(order, items, promo)
+
+
+@router.put("/orders/{id}", response_model=OrderResponse)
+async def orders_id_put(
+    id: uuid.UUID,
+    update_order_request: UpdateOrderRequest,
+    principal: Principal = Security(get_principal),
+    session: AsyncSession = Depends(get_session),
+) -> OrderResponse:
+    order, promo = await update_order(
+        session,
+        principal.user_id,
+        str(id),
+        [(item.product_id, item.quantity) for item in update_order_request.items],
     )
     await session.refresh(order)
     items = (

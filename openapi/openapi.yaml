@@ -175,6 +175,12 @@ components:
         items: { type: array, minItems: 1, maxItems: 50, items: { $ref: "#/components/schemas/OrderItemInput" } }
         promo_code: { type: string, nullable: true }
 
+    UpdateOrderRequest:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, minItems: 1, maxItems: 50, items: { $ref: "#/components/schemas/OrderItemInput" } }
+
     OrderResponse:
       type: object
       required: [order, items, promo_code]
@@ -322,3 +328,19 @@ paths:
         "403": { description: Forbidden, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
         "404": { description: Not found, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
         "409": { description: Conflict, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+
+  /orders/{id}:
+    put:
+      security: [{ BearerAuth: [] }]
+      description: "Allowed roles: USER, SELLER, ADMIN. Only owner can update order. Update allowed only in CREATED state."
+      x-roles-allowed: [USER, SELLER, ADMIN]
+      parameters: [ { in: path, name: id, required: true, schema: { type: string, format: uuid } } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/UpdateOrderRequest" } } } }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/OrderResponse" } } } }
+        "400": { description: Validation error, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+        "401": { description: Unauthorized, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+        "403": { description: Forbidden, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+        "404": { description: Not found, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+        "409": { description: Conflict, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+        "429": { description: Rate limit, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
