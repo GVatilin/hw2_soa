@@ -23,7 +23,7 @@ async def _check_rate_limit(session: AsyncSession, user_id: uuid.UUID):
         .limit(1)
     )
     last = (await session.execute(q)).scalar_one_or_none()
-    if last and (datetime.now() - last < timedelta(minutes=settings.order_rate_limit_min)):
+    if last and (datetime.now(timezone.utc) - last.astimezone(timezone.utc) < timedelta(minutes=settings.order_rate_limit_min)):
         raise ApiError(ErrorCode.ORDER_LIMIT_EXCEEDED, "Order operation rate limit exceeded", 429)
 
 
@@ -41,13 +41,24 @@ def _promo_discount(total: Decimal, promo: PromoCode) -> Decimal:
     return min(Decimal(str(promo.discount_value)), total)
 
 
-async def create_order(session: AsyncSession, user_id_str: str, items: list[tuple[str,int]], promo_code: str | None):
-    user_id = uuid.UUID(user_id_str)
+def _to_uuid(value: str | uuid.UUID) -> uuid.UUID:
+    if isinstance(value, uuid.UUID):
+        return value
+    return uuid.UUID(value)
+
+
+async def create_order(
+    session: AsyncSession,
+    user_id_str: str | uuid.UUID,
+    items: list[tuple[str | uuid.UUID, int]],
+    promo_code: str | None,
+):
+    user_id = _to_uuid(user_id_str)
     async with session.begin():
         await _check_rate_limit(session, user_id)
         await _check_has_active_order(session, user_id)
 
-        product_ids = [uuid.UUID(pid) for pid, _ in items]
+        product_ids = [_to_uuid(pid) for pid, _ in items]
         products = (await session.execute(
             select(Product).where(Product.id.in_(product_ids)).with_for_update()
         )).scalars().all()
@@ -55,20 +66,20 @@ async def create_order(session: AsyncSession, user_id_str: str, items: list[tupl
 
         insuff = []
         for pid_str, qty in items:
-            pid = uuid.UUID(pid_str)
+            pid = _to_uuid(pid_str)
             p = by_id.get(pid)
             if not p:
-                raise ApiError(ErrorCode.PRODUCT_NOT_FOUND, "Product not found", 404, {"product_id": pid_str})
+                raise ApiError(ErrorCode.PRODUCT_NOT_FOUND, "Product not found", 404, {"product_id": str(pid_str)})
             if p.status != ProductStatus.ACTIVE:
-                raise ApiError(ErrorCode.PRODUCT_INACTIVE, "Product inactive", 409, {"product_id": pid_str})
+                raise ApiError(ErrorCode.PRODUCT_INACTIVE, "Product inactive", 409, {"product_id": str(pid_str)})
             if p.stock < qty:
-                insuff.append({"product_id": pid_str, "requested": qty, "available": p.stock})
+                insuff.append({"product_id": str(pid_str), "requested": qty, "available": p.stock})
         if insuff:
             raise ApiError(ErrorCode.INSUFFICIENT_STOCK, "Insufficient stock", 409, {"items": insuff})
 
         total = Decimal("0.00")
         for pid_str, qty in items:
-            pid = uuid.UUID(pid_str)
+            pid = _to_uuid(pid_str)
             p = by_id[pid]
             p.stock -= qty
             total += Decimal(str(p.price)) * Decimal(qty)
@@ -80,12 +91,12 @@ async def create_order(session: AsyncSession, user_id_str: str, items: list[tupl
             promo = (await session.execute(
                 select(PromoCode).where(PromoCode.code == promo_code).with_for_update()
             )).scalar_one_or_none()
-            now = datetime.now()
+            now = datetime.now(timezone.utc)
             if (
                 promo is None
                 or not promo.active
                 or promo.current_uses >= promo.max_uses
-                or not (promo.valid_from.replace(tzinfo=timezone.utc) <= now <= promo.valid_until.replace(tzinfo=timezone.utc))
+                or not (promo.valid_from.astimezone(timezone.utc) <= now <= promo.valid_until.astimezone(timezone.utc))
             ):
                 raise ApiError(ErrorCode.PROMO_CODE_INVALID, "Promo code invalid", 422)
             if total < Decimal(str(promo.min_order_amount)):
@@ -106,7 +117,7 @@ async def create_order(session: AsyncSession, user_id_str: str, items: list[tupl
         await session.flush()
 
         for pid_str, qty in items:
-            pid = uuid.UUID(pid_str)
+            pid = _to_uuid(pid_str)
             p = by_id[pid]
             session.add(OrderItem(order_id=order.id, product_id=p.id, quantity=qty, price_at_order=float(p.price)))
 
